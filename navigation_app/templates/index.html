@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>실시간 보행자 내비게이션</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="map"></div>
+        
+        <div id="navigation-panel">
+            <div id="status">
+                <p>현재 위치를 확인 중...</p>
+            </div>
+            
+            <div id="destination-form">
+                <h3>목적지 입력</h3>
+                <div class="form-group">
+                    <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
+                    <button id="search">검색</button>
+                </div>
+                <div id="search-results" style="display: none; max-height: 200px; overflow-y: auto; margin-bottom: 10px;"></div>
+                <div class="form-group">
+                    <button id="start-navigation" disabled>길 안내 시작</button>
+                </div>
+            </div>
+            
+            <div id="navigation-info" style="display: none;">
+                <div id="compass-container" style="display: none; justify-content: center; margin-bottom: 10px;">
+                    <div id="compass">
+                        <div id="direction-arrow">↑</div>
+                    </div>
+                </div>
+                <button id="enable-compass" style="display: none; width: 100%; margin-bottom: 10px;">나침반 활성화</button>
+                <div class="info-item">
+                    <span class="label">남은 거리:</span>
+                    <span id="distance">0m</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">예상 시간:</span>
+                    <span id="time">00:00:00</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">다음 안내:</span>
+                    <span id="next-direction">진행 중...</span>
+                </div>
+                <div class="button-group">
+                    <button id="toggle-voice">음성 끄기</button>
+                    <button id="stop-navigation">안내 종료</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "{{ api_key }}";
+    </script>
+    <script src="/static/js/navigation.js"></script>
+</body>
+</html>
