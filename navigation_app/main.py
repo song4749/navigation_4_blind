@@ -11,7 +11,7 @@ import math
 import uuid
 from typing import List, Dict, Any, Optional
 
-# FastAPI 앱 초기화
+# FastAPI 앱 초기화ㅜ
 app = FastAPI(title="실시간 보행자 네비게이션")
 
 # 정적 파일 및 템플릿 설정
