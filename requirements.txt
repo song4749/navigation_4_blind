@@ -1,3 +1,7 @@
 timm
 onnx
 matplotlib
+ultralytics
+onnxruntime-gpu
+opencv-python
+numpy
