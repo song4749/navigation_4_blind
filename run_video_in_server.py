@@ -56,6 +56,9 @@ print("YOLO + Depth Anything v2")
 #     if not ret:
 #         break
 
+# ▪️ 장애물 상태 추적용
+previous_statuses = {}
+
 frame_index = 0
 while True:
     ret, frame = cap.read()
@@ -115,11 +118,11 @@ while True:
                     right_threshold = int(frame_width * 0.7)
 
                     if cx < left_threshold:
-                        cv2.putText(frame, "Off the guide block. Move right.",
+                        cv2.putText(frame, "Off the guide block. Move left.",
                                     (50, frame_height - 60), cv2.FONT_HERSHEY_SIMPLEX,
                                     1.0, (255, 255, 0), 3, cv2.LINE_AA)
                     elif cx > right_threshold:
-                        cv2.putText(frame, "Off the guide block. Move left.",
+                        cv2.putText(frame, "Off the guide block. Move right.",
                                     (50, frame_height - 60), cv2.FONT_HERSHEY_SIMPLEX,
                                     1.0, (255, 255, 0), 3, cv2.LINE_AA)
 
@@ -134,30 +137,39 @@ while True:
                                         1.2, (0, 0, 255), 3, cv2.LINE_AA)
 
                 if r in results_2:
-                    cx = int((x1 + x2) / 2)
-                    cy = int((y1 + y2) / 2)
                     depth_value = depth_map[cy, cx]
 
+                    # 상태 분류
                     if depth_value > 0.4:
-                        warning_text = "Danger"
+                        current_status = "Danger"
                         color = (0, 0, 255)
-                        if cx < frame_width * 0.5:
-                            cv2.putText(frame, "Obstacle close! Move right.",
-                                        (50, frame_height - 120), cv2.FONT_HERSHEY_SIMPLEX,
-                                        1.0, (0, 0, 255), 3, cv2.LINE_AA)
-                        else:
-                            cv2.putText(frame, "Obstacle close! Move left.",
-                                        (50, frame_height - 120), cv2.FONT_HERSHEY_SIMPLEX,
-                                        1.0, (0, 0, 255), 3, cv2.LINE_AA)
                     elif depth_value > 0.2:
-                        warning_text = "Warning"
+                        current_status = "Warning"
                         color = (0, 165, 255)
                     else:
-                        warning_text = "Safe"
+                        current_status = "Safe"
                         color = (0, 255, 0)
 
-                    label_text += f" | {warning_text}"
+                    label_text += f" | {current_status}"
 
+                    # 중심 범위: 30% ~ 70%
+                    center_left = int(frame_width * 0.3)
+                    center_right = int(frame_width * 0.7)
+                    is_center = center_left <= cx <= center_right
+
+                    # 간단한 위치 기반 추적 ID
+                    box_id = f"{cx//20}_{cy//20}"
+
+                    # 상태 변화 감지: Warning → Danger + 중심일 때만 경고 출력
+                    if box_id in previous_statuses:
+                        prev_status = previous_statuses[box_id]
+                        if prev_status == "Warning" and current_status == "Danger" and is_center:
+                            cv2.putText(frame, "Danger Increasing! Be careful!",
+                                        (50, 100), cv2.FONT_HERSHEY_SIMPLEX,
+                                        1.2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                    previous_statuses[box_id] = current_status
+                    
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, label_text, (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
