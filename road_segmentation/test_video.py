@@ -8,7 +8,10 @@ from transformers import SegformerFeatureExtractor
 onnx_path = "road_segmentation\segformer_b2_cityscapes_onnx\model.onnx"
 
 # ✅ 모델 로딩
-session = onnxruntime.InferenceSession(onnx_path)
+session = onnxruntime.InferenceSession(
+    onnx_path,
+    providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+)
 
 # ✅ Feature Extractor 로딩
 extractor = SegformerFeatureExtractor.from_pretrained("road_segmentation\segformer_b2_cityscapes_onnx")
