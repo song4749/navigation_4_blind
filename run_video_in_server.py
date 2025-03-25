@@ -164,9 +164,20 @@ while True:
                     if box_id in previous_statuses:
                         prev_status = previous_statuses[box_id]
                         if prev_status == "Warning" and current_status == "Danger" and is_center:
+                            # 기존 경고 메시지
                             cv2.putText(frame, "Danger Increasing! Be careful!",
                                         (50, 100), cv2.FONT_HERSHEY_SIMPLEX,
                                         1.2, (0, 0, 255), 3, cv2.LINE_AA)
+
+                            # ➕ 피할 방향 안내
+                            if cx < frame_width * 0.5:
+                                cv2.putText(frame, "Move RIGHT to avoid obstacle!",
+                                            (50, 150), cv2.FONT_HERSHEY_SIMPLEX,
+                                            1.0, (0, 0, 255), 3, cv2.LINE_AA)
+                            else:
+                                cv2.putText(frame, "Move LEFT to avoid obstacle!",
+                                            (50, 150), cv2.FONT_HERSHEY_SIMPLEX,
+                                            1.0, (0, 0, 255), 3, cv2.LINE_AA)
 
                     previous_statuses[box_id] = current_status
                     
