@@ -1,0 +1,49 @@
+<script>
+    const video = document.getElementById("video");
+    const resultImg = document.getElementById("result");
+
+    // 웹캠 열기
+    navigator.mediaDevices.getUserMedia({ video: true })
+    .then((stream) => {
+        video.srcObject = stream;
+        video.play();
+
+        // 영상 메타데이터 로드되면 시작
+        video.onloadedmetadata = () => {
+        setInterval(() => {
+            captureFrame();
+        }, 1000); // 1초마다 처리
+        };
+    })
+    .catch((err) => {
+        console.error("웹캠 접근 실패:", err);
+    });
+
+    function captureFrame() {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // video가 아직 로딩 중이면 width가 0일 수 있음
+    if (!canvas.width || !canvas.height) return;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = canvas.toDataURL("image/jpeg");
+
+    fetch("/process_frame", {
+        method: "POST",
+        headers: {
+        "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ image: imageData })
+    })
+    .then(res => res.json())
+    .then(data => {
+        resultImg.src = "data:image/jpeg;base64," + data.image;
+    })
+    .catch(err => console.error("서버 통신 오류:", err));
+    }
+  </script>
+  

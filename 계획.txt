@@ -24,3 +24,4 @@ yolo 버전마다 테스트 해보자
 https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=189
 데이터셋은 빈도수 높은거만 뽑고 용량 좀 줄여야함 6개 정도
 눈으로 확인해보는게 중요함
+
