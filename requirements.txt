@@ -6,3 +6,4 @@ onnxruntime-gpu
 opencv-python
 numpy
 pyproj
+transformers
