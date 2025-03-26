@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>실시간 보행자 내비게이션</title>
+    <title>시각장애인용 보행자 내비게이션</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 </head>
@@ -12,30 +13,63 @@
     <div id="app">
         <div id="map"></div>
         
-        <div id="navigation-panel">
+        <!-- 지도 컨트롤 버튼 -->
+        <div id="map-controls">
+            <button id="center-map" aria-label="현재 위치로 이동" title="현재 위치로 이동">
+                <i class="fas fa-location-arrow"></i>
+            </button>
+            <button id="toggle-panel" aria-label="패널 숨기기/보이기" title="패널 숨기기/보이기">
+                <i class="fas fa-chevron-up"></i>
+            </button>
+        </div>
+        
+        <div id="navigation-panel" class="expanded">
             <div id="status">
                 <p>현재 위치를 확인 중...</p>
             </div>
             
             <div id="destination-form">
-                <h3>목적지 입력</h3>
+                <h3>목적지 설정</h3>
                 <div class="form-group">
-                    <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
+                    <label for="destination">목적지:</label>
+                    <div class="input-with-voice">
+                        <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
+                        <button id="voice-input" aria-label="음성으로 목적지 입력" title="음성으로 목적지 입력">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                    </div>
                     <button id="search">검색</button>
                 </div>
-                <div id="search-results" style="display: none; max-height: 200px; overflow-y: auto; margin-bottom: 10px;"></div>
+                <div class="radius-filter">
+                    <label for="search-radius">검색 반경:</label>
+                    <select id="search-radius">
+                        <option value="500">500m</option>
+                        <option value="1000" selected>1km</option>
+                        <option value="3000">3km</option>
+                        <option value="5000">5km</option>
+                    </select>
+                </div>
+                <div id="search-results" style="display: none;"></div>
                 <div class="form-group">
                     <button id="start-navigation" disabled>길 안내 시작</button>
+                </div>
+                <div class="tip-container">
+                    <div class="tip">
+                        <div class="marker-icon current"></div> 현재 위치
+                    </div>
+                    <div class="tip">
+                        <div class="marker-icon destination"></div> 목적지
+                    </div>
                 </div>
             </div>
             
             <div id="navigation-info" style="display: none;">
-                <div id="compass-container" style="display: none; justify-content: center; margin-bottom: 10px;">
+                <div id="compass-container" style="display: none;">
                     <div id="compass">
                         <div id="direction-arrow">↑</div>
                     </div>
                 </div>
-                <button id="enable-compass" style="display: none; width: 100%; margin-bottom: 10px;">나침반 활성화</button>
+                <button id="enable-compass" style="display: none;">나침반 활성화</button>
                 <div class="info-item">
                     <span class="label">남은 거리:</span>
                     <span id="distance">0m</span>
@@ -50,7 +84,21 @@
                 </div>
                 <div class="button-group">
                     <button id="toggle-voice">음성 끄기</button>
+                    <button id="read-instruction">지시 다시 읽기</button>
                     <button id="stop-navigation">안내 종료</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 음성 확인 모달 -->
+        <div id="voice-confirm-modal" class="modal">
+            <div class="modal-content">
+                <h3>음성 인식 결과</h3>
+                <p id="recognized-text"></p>
+                <div class="button-group">
+                    <button id="confirm-voice">확인</button>
+                    <button id="retry-voice">다시 시도</button>
+                    <button id="cancel-voice">취소</button>
                 </div>
             </div>
         </div>
