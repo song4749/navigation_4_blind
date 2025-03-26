@@ -203,19 +203,29 @@ async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "api_key": APP_KEY})
 
 # 장소 검색 함수 (POI 검색) 추가
-def search_location(keyword):
+def search_location(keyword, lat=None, lng=None, radius=5000):
     """
     키워드로 장소 검색 (POI 검색)
     keyword: 검색할 장소명 또는 주소
+    lat, lng: 중심 위치 좌표 (선택적)
+    radius: 검색 반경 (미터 단위)
     returns: 검색 결과 목록
     """
     url = f'https://apis.openapi.sk.com/tmap/pois?version=1&format=json'
     
     params = {
         'searchKeyword': keyword,
-        'count': 10,  # 결과 개수
+        'count': 10,
         'appKey': APP_KEY
     }
+    
+    # 위치 정보가 있으면 중심점 및 반경 추가
+    if lat is not None and lng is not None:
+        params.update({
+            'centerLat': lat,
+            'centerLon': lng,
+            'radius': radius
+        })
     
     response = requests.get(url, params=params)
     
@@ -227,8 +237,11 @@ def search_location(keyword):
 
 # 장소 검색 API 엔드포인트 추가
 @app.get("/api/search")
-async def search_places(keyword: str):
-    result = search_location(keyword)
+async def search_places(keyword: str, lat: float = None, lng: float = None, radius: int = 5000):
+    print(f"검색 키워드: {keyword}, 위치: {lat}, {lng}, 반경: {radius}m")
+    
+    # 위치 정보가 있는 경우 함께 전달
+    result = search_location(keyword, lat, lng, radius)
     
     if not result or 'searchPoiInfo' not in result:
         return {"error": "검색 결과가 없습니다."}
@@ -402,4 +415,4 @@ async def websocket_endpoint(websocket: WebSocket):
 # 앱 실행
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
