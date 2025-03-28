@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Leaflet 라이브러리는 모듈 전에 로드되어야 함 -->
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 </head>
 <body>
@@ -64,12 +65,6 @@
             </div>
             
             <div id="navigation-info" style="display: none;">
-                <div id="compass-container" style="display: none;">
-                    <div id="compass">
-                        <div id="direction-arrow">↑</div>
-                    </div>
-                </div>
-                <button id="enable-compass" style="display: none;">나침반 활성화</button>
                 <div class="info-item">
                     <span class="label">남은 거리:</span>
                     <span id="distance">0m</span>
@@ -89,24 +84,14 @@
                 </div>
             </div>
         </div>
-        
-        <!-- 음성 확인 모달 -->
-        <div id="voice-confirm-modal" class="modal">
-            <div class="modal-content">
-                <h3>음성 인식 결과</h3>
-                <p id="recognized-text"></p>
-                <div class="button-group">
-                    <button id="confirm-voice">확인</button>
-                    <button id="retry-voice">다시 시도</button>
-                    <button id="cancel-voice">취소</button>
-                </div>
-            </div>
-        </div>
     </div>
 
+    <!-- API KEY 전달 (서버에서 템플릿 변수로 제공) -->
     <script>
         const API_KEY = "{{ api_key }}";
     </script>
-    <script src="/static/js/navigation.js"></script>
+    
+    <!-- 모듈 방식으로 JavaScript 로드 (기존 navigation.js 제거) -->
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
