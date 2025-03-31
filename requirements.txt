@@ -9,3 +9,4 @@ pyproj
 transformers
 pyngrok
 python-multipart
+python-dotenv
