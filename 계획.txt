@@ -25,3 +25,41 @@ https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=
 데이터셋은 빈도수 높은거만 뽑고 용량 좀 줄여야함 6개 정도
 눈으로 확인해보는게 중요함
 
+서버 여는법
+# 터미널 1 (FastAPI)
+uvicorn fast_api.app:app --host 0.0.0.0 --port 8000
+
+# 터미널 2 (Tunnel)
+cloudflared tunnel run blindnavi-tunnel
+
+
+project copy 를 복사해서 진행
+
+fast_api => detection_router
+navigation_app => navigation_router 두가지로 분할하고
+combined_app.py로 합침 
+
+
+navigation_4_blind/
+├── fast_api/
+│   ├── detection_router.py       👈 탐지 기능 담당
+│   ├── models/                   👈 ONNX 등 모델
+│   ├── utils/                    👈 유틸 함수
+│   └── mp3/                      👈 TTS 캐시 등 (선택)
+│
+├── navigation_app/
+│   ├── navigation_router.py      👈 경로 안내/검색 담당
+│   ├── static/                   👈 JS, CSS, 이미지
+│   └── templates/                👈 HTML 템플릿
+│       ├── index.html            ← 네비게이션 페이지
+│       └── detection.html        ← 실시간 탐지 페이지 ← ✅ 꼭 필요
+│
+├── combined_app.py               👈 FastAPI 통합 앱 실행 파일
+
+
+현재까지의 파일 구조 
+
+현재까지 서버가 열리긴하는데....
+/navigation
+/detection 이런식으로 페이지 구분이 안됩니다.
+ 

@@ -3,95 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>시각장애인용 보행자 내비게이션</title>
+    <title>시각장애인용 보행자 내비게이션 & 실시간 탐지</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- Leaflet 라이브러리는 모듈 전에 로드되어야 함 -->
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 </head>
 <body>
-    <div id="app">
-        <div id="map"></div>
-        
-        <!-- 지도 컨트롤 버튼 -->
-        <div id="map-controls">
-            <button id="center-map" aria-label="현재 위치로 이동" title="현재 위치로 이동">
-                <i class="fas fa-location-arrow"></i>
-            </button>
-            <button id="toggle-panel" aria-label="패널 숨기기/보이기" title="패널 숨기기/보이기">
-                <i class="fas fa-chevron-up"></i>
-            </button>
-        </div>
-        
-        <div id="navigation-panel" class="expanded">
-            <div id="status">
-                <p>현재 위치를 확인 중...</p>
+    <div id="navigation-view" style="display: block;">
+        <div id="app">
+            <div id="map"></div>
+            <div id="map-controls">
+                <button id="center-map" aria-label="현재 위치로 이동" title="현재 위치로 이동">
+                    <i class="fas fa-location-arrow"></i>
+                </button>
+                <button id="toggle-panel" aria-label="패널 숨기기/보이기" title="패널 숨기기/보이기">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
             </div>
-            
-            <div id="destination-form">
-                <h3>목적지 설정</h3>
-                <div class="form-group">
-                    <label for="destination">목적지:</label>
-                    <div class="input-with-voice">
-                        <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
-                        <button id="voice-input" aria-label="음성으로 목적지 입력" title="음성으로 목적지 입력">
-                            <i class="fas fa-microphone"></i>
+            <div id="navigation-panel" class="expanded">
+                <div id="status">현재 위치를 확인 중...</div>
+                <div id="destination-form">
+                    <h3>목적지 설정</h3>
+                    <div class="form-group">
+                        <label for="destination">목적지:</label>
+                        <div class="input-with-voice">
+                            <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
+                            <button id="voice-input" title="음성으로 목적지 입력">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                        </div>
+                        <button id="search">검색</button>
+                    </div>
+                    <div class="radius-filter">
+                        <label for="search-radius">검색 반경:</label>
+                        <select id="search-radius">
+                            <option value="500">500m</option>
+                            <option value="1000" selected>1km</option>
+                            <option value="3000">3km</option>
+                            <option value="5000">5km</option>
+                        </select>
+                    </div>
+                    <div id="search-results" style="display: none;"></div>
+                    <div class="form-group">
+                        <button id="start-navigation" disabled>길 안내 시작</button>
+                    </div>
+                    <div class="tip-container">
+                        <div class="tip"><div class="marker-icon current"></div> 현재 위치</div>
+                        <div class="tip"><div class="marker-icon destination"></div> 목적지</div>
+                    </div>
+                    <div class="form-group">
+                        <button onclick="showDetection()" style="font-size: 16px; padding: 10px 16px; width: 100%; margin-top: 10px;">
+                            실시간 탐지 화면 이동
                         </button>
                     </div>
-                    <button id="search">검색</button>
                 </div>
-                <div class="radius-filter">
-                    <label for="search-radius">검색 반경:</label>
-                    <select id="search-radius">
-                        <option value="500">500m</option>
-                        <option value="1000" selected>1km</option>
-                        <option value="3000">3km</option>
-                        <option value="5000">5km</option>
-                    </select>
-                </div>
-                <div id="search-results" style="display: none;"></div>
-                <div class="form-group">
-                    <button id="start-navigation" disabled>길 안내 시작</button>
-                </div>
-                <div class="tip-container">
-                    <div class="tip">
-                        <div class="marker-icon current"></div> 현재 위치
+                <div id="navigation-info" style="display: none;">
+                    <div class="info-item"><span class="label">남은 거리:</span><span id="distance">0m</span></div>
+                    <div class="info-item"><span class="label">예상 시간:</span><span id="time">00:00:00</span></div>
+                    <div class="info-item"><span class="label">다음 안내:</span><span id="next-direction">진행 중...</span></div>
+                    <div class="button-group">
+                        <button id="toggle-voice">음성 끄기</button>
+                        <button id="read-instruction">지시 다시 읽기</button>
+                        <button id="stop-navigation">안내 종료</button>
                     </div>
-                    <div class="tip">
-                        <div class="marker-icon destination"></div> 목적지
-                    </div>
-                </div>
-            </div>
-            
-            <div id="navigation-info" style="display: none;">
-                <div class="info-item">
-                    <span class="label">남은 거리:</span>
-                    <span id="distance">0m</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">예상 시간:</span>
-                    <span id="time">00:00:00</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">다음 안내:</span>
-                    <span id="next-direction">진행 중...</span>
-                </div>
-                <div class="button-group">
-                    <button id="toggle-voice">음성 끄기</button>
-                    <button id="read-instruction">지시 다시 읽기</button>
-                    <button id="stop-navigation">안내 종료</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- API KEY 전달 (서버에서 템플릿 변수로 제공) -->
+    <div id="detection-view" style="display: none; text-align:center;">
+        <h1>실시간 탐지 시스템</h1>
+        <button onclick="showNavigation()" style="font-size: 16px; padding: 8px 16px; margin-bottom: 20px; background-color: #eee; border-radius: 6px; border: 1px solid #ccc;">
+            ← 메인 화면으로 돌아가기
+        </button>
+        <video id="video" autoplay playsinline muted width="640" height="640" style="border:1px solid black;"></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <h2>경고 메시지</h2>
+        <div id="warnings" style="font-size:20px; color:red;"></div>
+    </div>
+
     <script>
         const API_KEY = "{{ api_key }}";
     </script>
-    
-    <!-- 모듈 방식으로 JavaScript 로드 (기존 navigation.js 제거) -->
     <script type="module" src="/static/js/main.js"></script>
+    <script>
+        function showDetection() {
+            document.getElementById("navigation-view").style.display = "none";
+            document.getElementById("detection-view").style.display = "block";
+            if (!window.streamStarted) {
+                startDetection();
+                window.streamStarted = true;
+            }
+        }
+
+        function showNavigation() {
+            document.getElementById("detection-view").style.display = "none";
+            document.getElementById("navigation-view").style.display = "block";
+        }
+
+        async function startDetection() {
+            const video = document.getElementById("video");
+            const warningsDiv = document.getElementById("warnings");
+            let currentAudio = null;
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 640, facingMode: "environment" } });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("카메라 접근 오류:", err);
+                return;
+            }
+
+            setInterval(() => {
+                if (document.getElementById("detection-view").style.display === "block") {
+                    const tempCanvas = document.createElement("canvas");
+                    tempCanvas.width = 640;
+                    tempCanvas.height = 640;
+                    const tempCtx = tempCanvas.getContext("2d");
+                    tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                    tempCanvas.toBlob(async blob => {
+                        const formData = new FormData();
+                        formData.append("file", blob, "frame.jpg");
+                        try {
+                            const response = await fetch("/process_warning", {
+                                method: "POST",
+                                body: formData
+                            });
+                            const data = await response.json();
+                            console.log("받은 audio_url:", data.audio_url);  // 테스트용 로그
+                            warningsDiv.innerHTML = data.warnings.join("<br>");
+                            if (data.audio_url) {
+                                const audio = new Audio(data.audio_url);
+
+                                audio.onplay = () => {
+                                    console.log("재생 시작:", data.audio_url);
+                                };
+
+                                audio.onended = () => {
+                                    console.log("재생 완료");
+                                    fetch("/audio_finished");
+                                };
+
+                                audio.onerror = (e) => {
+                                    console.error("오디오 재생 실패", e);
+                                    fetch("/audio_finished");
+                                };
+
+                                await audio.play().catch(e => {
+                                    console.warn("재생 실패:", e);
+                                    fetch("/audio_finished");
+                                });
+                            }
+                        } catch (err) {
+                            console.error("프레임 전송 오류:", err);
+                        }
+                    }, "image/jpeg");
+                }
+            }, 200);
+        }
+    </script>
 </body>
 </html>

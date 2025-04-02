@@ -7,8 +7,10 @@ let routeLayer = null;
 
 // 지도 초기화
 function initMap(initialLat, initialLng, zoom = 15) {
+    const el = document.getElementById("map");
+    console.log("[initMap 호출됨] map 엘리먼트 높이:", el?.offsetHeight);
     console.log('지도 초기화 중...');
-    
+
     try {
         // 지도 요소가 있는지 확인
         const mapElement = document.getElementById('map');
@@ -16,7 +18,12 @@ function initMap(initialLat, initialLng, zoom = 15) {
             console.error('map 요소를 찾을 수 없습니다');
             return null;
         }
-        
+
+        // 기존 map 인스턴스가 있다면 제거
+        if (map) {
+            map.remove();
+        }
+
         // 위치 정보가 없는 경우 빈 지도만 생성
         if (!initialLat || !initialLng) {
             console.warn('위치 정보가 없습니다. 위치 확인 후 지도가 업데이트됩니다.');
@@ -24,24 +31,24 @@ function initMap(initialLat, initialLng, zoom = 15) {
             initialLng = 0;
             zoom = 2; // 전체 지도 표시
         }
-        
+
         // 지도 생성
         map = L.map('map', {
             center: [initialLat, initialLng],
             zoom: zoom,
             zoomControl: false // 줌 컨트롤은 별도로 배치
         });
-        
+
         // 타일 레이어 추가
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
-        
+
         // 줌 컨트롤 추가 (왼쪽으로 변경)
         L.control.zoom({
             position: 'topleft'
         }).addTo(map);
-        
+
         console.log('지도 초기화 완료');
         return map;
     } catch (error) {
@@ -62,25 +69,21 @@ function getDestinationMarker() {
 
 // 현재 위치 마커 업데이트
 function updateCurrentPositionMarker(lat, lng, accuracy) {
-    // 위치가 변경되었는지 확인
     let hasChanged = true;
-    
+
     if (currentPositionMarker) {
         const pos = currentPositionMarker.getLatLng();
-        // 위치가 기존과 거의 같으면 업데이트 안 함 (5m 이내)
         if (Math.abs(pos.lat - lat) < 0.00005 && Math.abs(pos.lng - lng) < 0.00005) {
             hasChanged = false;
         }
     }
-    
+
     if (hasChanged) {
-        // 기존 마커 제거
         if (currentPositionMarker) {
             map.removeLayer(currentPositionMarker);
         }
-        
-        // 위치 정확도 표시용 원
-        if (accuracy && accuracy < 100) {  // 100m 미만일 때만 표시
+
+        if (accuracy && accuracy < 100) {
             L.circle([lat, lng], {
                 radius: accuracy,
                 color: 'blue',
@@ -88,8 +91,7 @@ function updateCurrentPositionMarker(lat, lng, accuracy) {
                 fillOpacity: 0.3
             }).addTo(map);
         }
-        
-        // 새 마커 생성
+
         currentPositionMarker = L.marker([lat, lng], {
             icon: L.divIcon({
                 className: 'current-position-marker',
@@ -99,18 +101,16 @@ function updateCurrentPositionMarker(lat, lng, accuracy) {
             })
         }).addTo(map);
     }
-    
+
     return currentPositionMarker;
 }
 
 // 목적지 마커 설정
 function setDestinationMarker(lat, lng, name) {
-    // 기존 마커 제거
     if (destinationMarker) {
         map.removeLayer(destinationMarker);
     }
-    
-    // 새 마커 생성
+
     destinationMarker = L.marker([lat, lng], {
         icon: L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -121,25 +121,21 @@ function setDestinationMarker(lat, lng, name) {
             shadowSize: [41, 41]
         })
     }).addTo(map);
-    
-    // 팝업 추가
+
     destinationMarker.bindPopup(`<b>목적지:</b> ${name}`).openPopup();
-    
+
     return destinationMarker;
 }
 
 // 경로 그리기
 function drawRoute(coordinates) {
-    // 기존 경로 제거
     clearRoute();
-    
-    // 새로운 경로 생성
+
     const routeCoordinates = coordinates.map(coord => [coord[0], coord[1]]);
     routeLayer = L.polyline(routeCoordinates, { color: 'blue', weight: 5 }).addTo(map);
-    
-    // 지도 범위 조정
+
     map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-    
+
     return routeLayer;
 }
 
@@ -165,7 +161,6 @@ function getMap() {
     return map;
 }
 
-// 인터페이스 통일을 위한 객체
 const mapService = {
     initMap,
     updateCurrentPositionMarker,
@@ -178,5 +173,4 @@ const mapService = {
     getDestinationMarker
 };
 
-// 객체로 내보내기
 export default mapService;

@@ -11,6 +11,8 @@ current_display_warnings = []
 last_audio_filename = None
 is_audio_playing = False
 danger_warning_boxes = {}
+guide_block_detected_counter = 0
+guide_block_detected_time = None
 
 def reset_audio_status():
     global is_audio_playing
@@ -24,6 +26,7 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
     global no_block_start_time
     global message_counter, current_display_warnings, last_audio_filename
     global is_audio_playing, previous_statuses, danger_warning_boxes
+    global guide_block_detected_counter, guide_block_detected_time
 
     start_time = time.time()
     temp_warnings = []
@@ -41,7 +44,7 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
 
             if class_name in ["stop", "go_forward"]:
                 has_block = True
-            if class_name == "stop" and y2 > frame_height * 0.9:
+            if class_name == "stop" and y2 > frame_height * 0.8:
                 stop_box = (x1, y1, x2, y2)
 
     # === 정지 블록 기반 방향 안내 ===
@@ -108,7 +111,7 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
             box_id = f"{cx//20}_{cy//20}"
             current_box_ids.add(box_id)
 
-            current_status = "Danger" if depth_value > 0.2 else "Warning" if depth_value > 0.1 else "Safe"
+            current_status = "Danger" if depth_value > 0.3 else "Warning" if depth_value > 0.2 else "Safe"
 
             if box_id in previous_statuses:
                 prev_status = previous_statuses[box_id]
@@ -129,17 +132,34 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
         elif msg not in temp_warnings:
             temp_warnings.append(msg)
 
-    # === 점자블록 미탐지 시 세그멘테이션 기반 경고 ===
+    # === 점자블록 미탐지 및 재탐지 문구 처리 ===
+    no_guide_msg = "No guide block detected."
+    guide_detected_msg = "Guide block detected again."
+
     if not has_block:
         if no_block_start_time is None:
             no_block_start_time = time.time()
-        elif time.time() - no_block_start_time >= 1.0:
-            temp_warnings.append("No guide block detected.")
+        if time.time() - no_block_start_time >= 1.0 or no_guide_msg in message_counter:
+            temp_warnings.append(no_guide_msg)
+        guide_block_detected_counter = 0
+        guide_block_detected_time = None
     else:
-        no_block_start_time = None
-        message_counter.pop("No guide block detected.", None)
+        if no_guide_msg in message_counter:
+            guide_block_detected_counter += 1
+            if guide_block_detected_counter >= 4:
+                if guide_block_detected_time is None:
+                    guide_block_detected_time = time.time()
+                elif time.time() - guide_block_detected_time <= 1.0:
+                    temp_warnings.append(guide_detected_msg)
+        else:
+            guide_block_detected_counter = 0
+            guide_block_detected_time = None
 
-    if "No guide block detected." in temp_warnings:
+        no_block_start_time = None
+        message_counter.pop(no_guide_msg, None)
+
+    # === 세그멘테이션 기반 도로 감지 ===
+    if not has_block:
         seg_map = segment_sidewalk_road(frame)
         h, w = seg_map.shape
         bottom_region = seg_map[int(h * 0.7):, :]
@@ -152,10 +172,34 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
         left_ratio = np.mean(np.isin(left_half, ROAD_CLASSES))
         right_ratio = np.mean(np.isin(right_half, ROAD_CLASSES))
 
-        if left_ratio > 0.2 and left_ratio > right_ratio:
+        if left_ratio > 0.2:
             temp_warnings.append("Road detected on the LEFT. Move right to stay on the sidewalk.")
-        elif right_ratio > 0.2 and right_ratio > left_ratio:
+        elif right_ratio > 0.2:
             temp_warnings.append("Road detected on the RIGHT. Move left to stay on the sidewalk.")
+
+
+    # # === 세그멘테이션 기반 도로 감지 ===
+    # if not has_block:
+    #     seg_map = segment_sidewalk_road(frame)
+    #     if seg_map is None:
+    #         print("[DEBUG] seg_map is None!")
+    #     else:
+    #         print("[DEBUG] seg_map shape:", seg_map.shape)
+    #         print("Unique classes in seg_map:", np.unique(seg_map))
+    #     h, w = seg_map.shape
+
+    #     left_half = seg_map[:, :w // 2]
+    #     right_half = seg_map[:, w // 2:]
+
+    #     ROAD_CLASSES = [0, 4]
+
+    #     left_ratio = np.mean(np.isin(left_half, ROAD_CLASSES))
+    #     right_ratio = np.mean(np.isin(right_half, ROAD_CLASSES))
+
+    #     if left_ratio > 0.3:
+    #         temp_warnings.append("Road detected on the LEFT. Move right to stay on the sidewalk.")
+    #     if right_ratio > 0.3:
+    #         temp_warnings.append("Road detected on the RIGHT. Move left to stay on the sidewalk.")
 
     # === 경고 카운트 및 출력 확정 ===
     confirmed_warnings = []
@@ -187,4 +231,8 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
         is_audio_playing = False
 
     print(f"[DEBUG] Processed in {int((time.time() - start_time)*1000)} ms | Warning: {current_display_warnings}")
+    print(f"[DEBUG] Confirmed warnings: {confirmed_warnings}")
+    print(f"[DEBUG] audio_filename selected: {audio_filename}")
+    print(f"[DEBUG] last_audio_filename: {last_audio_filename}")
+    print(f"[DEBUG] is_audio_playing: {is_audio_playing}")
     return current_display_warnings, audio_filename

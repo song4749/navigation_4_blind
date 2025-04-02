@@ -6,7 +6,7 @@ from ultralytics import YOLO
 model = YOLO("road_segmentation/road_segmentation_small.onnx", task="segment")
 
 # 2. 동영상 로드
-cap = cv2.VideoCapture("test_video/long_video.mp4")
+cap = cv2.VideoCapture("KakaoTalk_20250331_114905657.mp4")
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -19,7 +19,7 @@ cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
 # 3. 결과 저장 설정
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter("test_video/seg_result_last30s.mp4", fourcc, fps, (width, height))
+out = cv2.VideoWriter("seg_result_asdf.mp4", fourcc, fps, (width, height))
 
 # 4. 클래스별 색상 고정
 class_colors = {
