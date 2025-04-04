@@ -103,6 +103,40 @@ class UIService {
       : '<i class="fas fa-chevron-up"></i>';
   }
 
+  displaySearchResults(places, currentLocation, onSelect) {
+    if (!this.searchResultsDiv) return;
+  
+    this.searchResultsDiv.innerHTML = '';  // 기존 결과 초기화
+  
+    const ul = document.createElement('ul');
+  
+    places.forEach(place => {
+      const li = document.createElement('li');
+      li.textContent = place.name;
+  
+      // 거리 정보 추가
+      if (place.distance) {
+        const distanceSpan = document.createElement('div');
+        distanceSpan.className = 'distance-info';
+        distanceSpan.textContent = `${place.distance < 1000 
+          ? `${place.distance}m` 
+          : `${(place.distance / 1000).toFixed(1)}km`}`;
+        li.appendChild(distanceSpan);
+      }
+  
+      li.addEventListener('click', () => {
+        if (typeof onSelect === 'function') {
+          onSelect(place);
+        }
+      });
+  
+      ul.appendChild(li);
+    });
+  
+    this.searchResultsDiv.appendChild(ul);
+    this.searchResultsDiv.style.display = 'block';
+  }
+  
   // 위치 디버그 UI 초기화
   initLocationDebugUI() {
     const locationDebug = document.createElement('div');

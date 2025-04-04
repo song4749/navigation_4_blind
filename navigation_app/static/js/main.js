@@ -304,7 +304,10 @@ async function searchWithLocation(query, lat, lng) {
         }
         
         // 검색 API 호출 (모든 경우에 위치 정보 포함)
-        const searchData = await apiService.searchPlaces(query, lat, lng, isNearbySearch ? 1000 : 3000);
+        const radiusSelect = document.getElementById("search-radius");
+        const radius = parseInt(radiusSelect?.value || "3000");
+
+        const searchData = await apiService.searchPlaces(query, lat, lng, radius);
         
         if (searchData.error) {
             ui.setStatus(`검색 오류: ${searchData.error}`);
@@ -617,6 +620,7 @@ async function handleNaturalLanguageSearch(query) {
         
         // API 호출 - 위치 정보 전달
         const data = await apiService.naturalLanguageSearch(query, lat, lng);
+        console.log("자연어 검색 결과 응답:", data);
         
         if (data.error) {
             ui.setStatus(`검색 오류: ${data.error}`);

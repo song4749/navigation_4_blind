@@ -1,167 +1,247 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>시각장애인용 보행자 내비게이션 & 실시간 탐지</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- 캐시를 방지하기 위한 메타 태그 추가 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>시각장애인용 보행자 내비게이션 & 실시간 탐지</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 </head>
 <body>
-    <div id="navigation-view" style="display: block;">
-        <div id="app">
-            <div id="map"></div>
-            <div id="map-controls">
-                <button id="center-map" aria-label="현재 위치로 이동" title="현재 위치로 이동">
-                    <i class="fas fa-location-arrow"></i>
-                </button>
-                <button id="toggle-panel" aria-label="패널 숨기기/보이기" title="패널 숨기기/보이기">
-                    <i class="fas fa-chevron-up"></i>
-                </button>
+  <!-- 네비게이션 영역 (변경 없음) -->
+  <div id="navigation-view" style="display: block;">
+    <div id="app">
+      <div id="map"></div>
+      <div id="map-controls">
+        <button id="center-map" aria-label="현재 위치로 이동" title="현재 위치로 이동">
+          <i class="fas fa-location-arrow"></i>
+        </button>
+        <button id="toggle-panel" aria-label="패널 숨기기/보이기" title="패널 숨기기/보이기">
+          <i class="fas fa-chevron-up"></i>
+        </button>
+      </div>
+      <div id="navigation-panel" class="expanded">
+        <div id="status">현재 위치를 확인 중...</div>
+        <div id="destination-form">
+          <h3>목적지 설정</h3>
+          <div class="form-group">
+            <label for="destination">목적지:</label>
+            <div class="input-with-voice">
+              <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
+              <button id="voice-input" title="음성으로 목적지 입력">
+                <i class="fas fa-microphone"></i>
+              </button>
             </div>
-            <div id="navigation-panel" class="expanded">
-                <div id="status">현재 위치를 확인 중...</div>
-                <div id="destination-form">
-                    <h3>목적지 설정</h3>
-                    <div class="form-group">
-                        <label for="destination">목적지:</label>
-                        <div class="input-with-voice">
-                            <input type="text" id="destination" placeholder="목적지 검색 (예: 서울역, 광화문)">
-                            <button id="voice-input" title="음성으로 목적지 입력">
-                                <i class="fas fa-microphone"></i>
-                            </button>
-                        </div>
-                        <button id="search">검색</button>
-                    </div>
-                    <div class="radius-filter">
-                        <label for="search-radius">검색 반경:</label>
-                        <select id="search-radius">
-                            <option value="500">500m</option>
-                            <option value="1000" selected>1km</option>
-                            <option value="3000">3km</option>
-                            <option value="5000">5km</option>
-                        </select>
-                    </div>
-                    <div id="search-results" style="display: none;"></div>
-                    <div class="form-group">
-                        <button id="start-navigation" disabled>길 안내 시작</button>
-                    </div>
-                    <div class="tip-container">
-                        <div class="tip"><div class="marker-icon current"></div> 현재 위치</div>
-                        <div class="tip"><div class="marker-icon destination"></div> 목적지</div>
-                    </div>
-                    <div class="form-group">
-                        <button onclick="showDetection()" style="font-size: 16px; padding: 10px 16px; width: 100%; margin-top: 10px;">
-                            실시간 탐지 화면 이동
-                        </button>
-                    </div>
-                </div>
-                <div id="navigation-info" style="display: none;">
-                    <div class="info-item"><span class="label">남은 거리:</span><span id="distance">0m</span></div>
-                    <div class="info-item"><span class="label">예상 시간:</span><span id="time">00:00:00</span></div>
-                    <div class="info-item"><span class="label">다음 안내:</span><span id="next-direction">진행 중...</span></div>
-                    <div class="button-group">
-                        <button id="toggle-voice">음성 끄기</button>
-                        <button id="read-instruction">지시 다시 읽기</button>
-                        <button id="stop-navigation">안내 종료</button>
-                    </div>
-                </div>
-            </div>
+            <button id="search">검색</button>
+          </div>
+          <div class="radius-filter">
+            <label for="search-radius">검색 반경:</label>
+            <select id="search-radius">
+              <option value="500">500m</option>
+              <option value="1000" selected>1km</option>
+              <option value="3000">3km</option>
+              <option value="5000">5km</option>
+            </select>
+          </div>
+          <div id="search-results" style="display: none;"></div>
+          <div class="form-group">
+            <!-- 내비게이션 시작 시 실시간 탐지도 함께 시작 -->
+            <button id="start-navigation">길 안내 시작</button>
+          </div>
+          <div class="tip-container">
+            <div class="tip"><div class="marker-icon current"></div> 현재 위치</div>
+            <div class="tip"><div class="marker-icon destination"></div> 목적지</div>
+          </div>
+          <div class="form-group">
+            <button onclick="showDetection()" style="font-size: 16px; padding: 10px 16px; width: 100%; margin-top: 10px;">
+              실시간 탐지 화면 이동
+            </button>
+          </div>
         </div>
+        <div id="navigation-info" style="display: none;">
+          <div class="info-item"><span class="label">남은 거리:</span><span id="distance">0m</span></div>
+          <div class="info-item"><span class="label">예상 시간:</span><span id="time">00:00:00</span></div>
+          <div class="info-item"><span class="label">다음 안내:</span><span id="next-direction">진행 중...</span></div>
+          <div class="button-group">
+            <button id="toggle-voice">음성 끄기</button>
+            <button id="read-instruction">지시 다시 읽기</button>
+            <button id="stop-navigation">안내 종료</button>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <div id="detection-view" style="display: none; text-align:center;">
+  <!-- 실시간 탐지 시스템 영역: 왼쪽에는 항상 카메라 스트리밍, 오른쪽은 처리 결과가 실시간 업데이트 -->
+  <div id="detection-view" style="display: none;">
+    <div class="detection-container" style="display: flex; flex-direction: row; align-items: flex-start;">
+      <!-- 왼쪽: 원본 카메라 스트리밍 -->
+      <div class="left-pane" style="flex: 1; padding: 10px;">
+        <video id="video" autoplay playsinline muted width="640" height="640" style="border:1px solid black;"></video>
+      </div>
+      <!-- 오른쪽: 버튼 클릭으로 화면 전환되며 실시간으로 갱신 -->
+      <div class="right-pane" style="flex: 1; padding: 10px;">
         <h1>실시간 탐지 시스템</h1>
         <button onclick="showNavigation()" style="font-size: 16px; padding: 8px 16px; margin-bottom: 20px; background-color: #eee; border-radius: 6px; border: 1px solid #ccc;">
-            ← 메인 화면으로 돌아가기
+          ← 메인 화면으로 돌아가기
         </button>
-        <video id="video" autoplay playsinline muted width="640" height="640" style="border:1px solid black;"></video>
-        <canvas id="canvas" style="display:none;"></canvas>
+        <div id="screen-selector" style="margin-bottom: 20px;">
+          <button onclick="switchScreen('original')">원본 화면</button>
+          <button onclick="switchScreen('depth')">깊이 화면</button>
+          <button onclick="switchScreen('obstacle')">장애물 탐지 화면</button>
+          <button onclick="switchScreen('segmentation')">세그멘테이션 화면</button>
+        </div>
+        <div id="screen-container">
+          <!-- 오른쪽 원본 화면 (비교용) -->
+          <div id="screen-original" class="screen" style="display: block;">
+            <video id="video-original" autoplay playsinline muted width="640" height="640" style="border:1px solid black;"></video>
+          </div>
+          <!-- 깊이 화면 -->
+          <div id="screen-depth" class="screen" style="display: none;">
+            <img id="depthmap" width="640" height="640" style="border:1px solid gray;" alt="Depth Map Visualization">
+          </div>
+          <!-- 장애물 탐지 화면 -->
+          <div id="screen-obstacle" class="screen" style="display: none;">
+            <img id="obstaclemap" width="640" height="640" style="border:1px solid gray;" alt="Obstacle Detection">
+          </div>
+          <!-- 세그멘테이션 화면 -->
+          <div id="screen-segmentation" class="screen" style="display: none;">
+            <img id="segmentationmap" width="640" height="640" style="border:1px solid gray;" alt="Segmentation Visualization">
+          </div>
+        </div>
         <h2>경고 메시지</h2>
         <div id="warnings" style="font-size:20px; color:red;"></div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const API_KEY = "{{ api_key }}";
-    </script>
-    <script type="module" src="/static/js/main.js"></script>
-    <script>
-        function showDetection() {
-            document.getElementById("navigation-view").style.display = "none";
-            document.getElementById("detection-view").style.display = "block";
-            if (!window.streamStarted) {
-                startDetection();
-                window.streamStarted = true;
-            }
+  <script>
+    const API_KEY = "{{ api_key }}";
+    let currentDetectionScreen = "original";
+    let navigationActive = false;
+    let detectionStarted = false;
+  
+    document.getElementById("start-navigation").addEventListener("click", function () {
+      if (!detectionStarted) {
+        startDetection();
+        detectionStarted = true;
+      }
+      navigationActive = true;
+    });
+  
+    document.getElementById("stop-navigation").addEventListener("click", function () {
+      navigationActive = false;
+      const video = document.getElementById("video");
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+    });
+  
+    function showDetection() {
+      document.getElementById("detection-view").style.display = "block";
+      document.getElementById("navigation-view").style.display = "none";
+    }
+  
+    function showNavigation() {
+      document.getElementById("detection-view").style.display = "none";
+      document.getElementById("navigation-view").style.display = "block";
+    }
+  
+    function switchScreen(screen) {
+      currentDetectionScreen = screen;
+      document.getElementById("screen-original").style.display = (screen === "original") ? "block" : "none";
+      document.getElementById("screen-depth").style.display = (screen === "depth") ? "block" : "none";
+      document.getElementById("screen-obstacle").style.display = (screen === "obstacle") ? "block" : "none";
+      document.getElementById("screen-segmentation").style.display = (screen === "segmentation") ? "block" : "none";
+    }
+  
+    async function startDetection() {
+      const video = document.getElementById("video");
+      const videoOriginal = document.getElementById("video-original");
+      const warningsDiv = document.getElementById("warnings");
+      const depthImg = document.getElementById("depthmap");
+      const obstacleImg = document.getElementById("obstaclemap");
+      const segmentationImg = document.getElementById("segmentationmap");
+  
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: 640,
+            height: 640,
+            facingMode: "environment"
+          }
+        });
+        video.srcObject = stream;
+        if (videoOriginal) {
+          videoOriginal.srcObject = stream;
         }
-
-        function showNavigation() {
-            document.getElementById("detection-view").style.display = "none";
-            document.getElementById("navigation-view").style.display = "block";
+      } catch (err) {
+        console.error("카메라 접근 오류:", err);
+        return;
+      }
+  
+      // ✅ 1. 0.2초마다 탐지 요청 보내기 (탐지는 무조건 주기적으로)
+      setInterval(() => {
+        if (!navigationActive) return;
+        sendFrame(video, warningsDiv);
+      }, 200);
+  
+      // ✅ 2. 0.5초마다 이미지 표시 갱신
+      setInterval(() => {
+        const now = Date.now();
+        if (currentDetectionScreen === "depth") {
+          depthImg.src = `/static/depthmap_latest.jpg?t=${now}`;
         }
-
-        async function startDetection() {
-            const video = document.getElementById("video");
-            const warningsDiv = document.getElementById("warnings");
-            let currentAudio = null;
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 640, facingMode: "environment" } });
-                video.srcObject = stream;
-            } catch (err) {
-                console.error("카메라 접근 오류:", err);
-                return;
-            }
-
-            setInterval(() => {
-                if (document.getElementById("detection-view").style.display === "block") {
-                    const tempCanvas = document.createElement("canvas");
-                    tempCanvas.width = 640;
-                    tempCanvas.height = 640;
-                    const tempCtx = tempCanvas.getContext("2d");
-                    tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-                    tempCanvas.toBlob(async blob => {
-                        const formData = new FormData();
-                        formData.append("file", blob, "frame.jpg");
-                        try {
-                            const response = await fetch("/process_warning", {
-                                method: "POST",
-                                body: formData
-                            });
-                            const data = await response.json();
-                            console.log("받은 audio_url:", data.audio_url);  // 테스트용 로그
-                            warningsDiv.innerHTML = data.warnings.join("<br>");
-                            if (data.audio_url) {
-                                const audio = new Audio(data.audio_url);
-
-                                audio.onplay = () => {
-                                    console.log("재생 시작:", data.audio_url);
-                                };
-
-                                audio.onended = () => {
-                                    console.log("재생 완료");
-                                    fetch("/audio_finished");
-                                };
-
-                                audio.onerror = (e) => {
-                                    console.error("오디오 재생 실패", e);
-                                    fetch("/audio_finished");
-                                };
-
-                                await audio.play().catch(e => {
-                                    console.warn("재생 실패:", e);
-                                    fetch("/audio_finished");
-                                });
-                            }
-                        } catch (err) {
-                            console.error("프레임 전송 오류:", err);
-                        }
-                    }, "image/jpeg");
-                }
-            }, 200);
+        if (currentDetectionScreen === "obstacle") {
+          obstacleImg.src = `/static/obstacle_latest.jpg?t=${now}`;
         }
-    </script>
+        if (currentDetectionScreen === "segmentation") {
+          segmentationImg.src = `/static/segmentation_latest.jpg?t=${now}`;
+        }
+      }, 1000);
+    }
+  
+    async function sendFrame(video, warningsDiv) {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = 640;
+      tempCanvas.height = 640;
+      const tempCtx = tempCanvas.getContext("2d");
+      tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+  
+      tempCanvas.toBlob(async blob => {
+        const formData = new FormData();
+        formData.append("file", blob, "frame.jpg");
+  
+        try {
+          const screenParam = currentDetectionScreen;
+          const response = await fetch(`/process_warning?screen=${screenParam}`, {
+            method: "POST",
+            body: formData,
+            cache: "no-store"
+          });
+          const data = await response.json();
+  
+          warningsDiv.innerHTML = data.warnings.join("<br>");
+          if (data.audio_url) {
+            const audio = new Audio(data.audio_url);
+            audio.play().catch(console.warn);
+          }
+  
+          // 🔁 이미지 갱신은 따로 돌기 때문에 여기선 처리하지 않음
+  
+        } catch (err) {
+          console.error("프레임 전송 오류:", err);
+        }
+      }, "image/jpeg");
+    }
+  </script>
+  <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

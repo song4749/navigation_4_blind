@@ -145,90 +145,70 @@ async def text_to_speech(request: TTSRequest):
     logger.info(f"기본 음성 파일 사용: {text}")
     return {"url": "/static/audio/fallback_voice.mp3", "fallback": True}
 
-@router.get("/api/search_nearby")
-async def search_nearby_category(
-    category: str, 
-    lat: float, 
-    lng: float, 
-    radius: int = 1000,
+@router.get("/api/search")
+async def search_place(
+    keyword: str, 
+    lat: Optional[float] = None, 
+    lng: Optional[float] = None, 
+    radius: int = 3000,
+    use_current_location: bool = False
 ):
-    """카테고리별 주변 장소 검색"""
+    """키워드로 장소 검색"""
+    if not keyword:
+        return {"error": "검색어가 비어 있습니다."}
+
     try:
-        # 로깅
-        logger.info(f"주변 카테고리 검색: {category}, 위치: {lat}, {lng}, 반경: {radius}m")
-        
-        # TMap 카테고리 검색 API 호출
-        base_url = "https://apis.openapi.sk.com/tmap/pois/search/around"
-        
-        # 파라미터 값 준비 - 소수점 제한 및 타입 변환
-        lat_rounded = round(lat, 6)  # 소수점 6자리로 제한
-        lng_rounded = round(lng, 6)  # 소수점 6자리로 제한
-        radius_int = int(radius)     # 정수로 확실하게 변환
-        
-        # URL 직접 구성 (쿼리 파라미터 수동 생성)
-        url_with_params = (
-            f"{base_url}?version=1"
-            f"&categories={urllib.parse.quote(category)}"
-            f"&centerLat={lat_rounded}"
-            f"&centerLon={lng_rounded}"
-            f"&radius={radius_int}"
-            f"&count=20"
-            f"&reqCoordType=WGS84GEO"
-            f"&resCoordType=WGS84GEO"
-            f"&appKey={APP_KEY}"
-        )
-        
-        logger.info(f"카테고리 검색 API 요청 URL: {url_with_params}")
-        
-        # 직접 구성한 URL로 요청
-        response = requests.get(url_with_params)
-        
+        url = "https://apis.openapi.sk.com/tmap/pois"
+
+        logger.info(f"검색 키워드: {keyword}, 위치: {lat}, {lng}, 반경: {radius}m")
+
+        params = {
+            "version": "1",
+            "searchKeyword": keyword,
+            "count": 20,
+            "reqCoordType": "WGS84GEO",
+            "resCoordType": "WGS84GEO",
+            "appKey": APP_KEY
+        }
+
+        response = requests.get(url, params=params)
+
         if response.status_code != 200:
-            logger.error(f"카테고리 검색 API 오류: {response.status_code}, {response.text}")
-            
-            # 백업: 카테고리 코드를 키워드로 사용한 일반 검색
-            backup_url = f"https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword={urllib.parse.quote(category)}&count=20&appKey={APP_KEY}&reqCoordType=WGS84GEO&resCoordType=WGS84GEO"
-            logger.info(f"백업 검색 시도: {backup_url}")
-            
-            backup_response = requests.get(backup_url)
-            
-            if backup_response.status_code != 200:
-                return {"error": f"API 호출 실패: {response.status_code}", "details": response.text}
-            
-            # 백업 검색 결과 처리
-            data = backup_response.json()
-            logger.info("백업 키워드 검색 성공")
-        else:
-            # 기본 응답 처리
-            data = response.json()
-        
-        # 검색 결과 없음
-        if not data.get("searchPoiInfo", {}).get("pois", {}).get("poi"):
+            logger.error(f"키워드 검색 API 오류: {response.status_code}, {response.text}")
+            return {"error": f"키워드 검색 실패: {response.status_code}"}
+
+        data = response.json()
+
+        pois = data.get("searchPoiInfo", {}).get("pois", {}).get("poi")
+        if not pois:
             return {"places": [], "warning": "검색 결과가 없습니다."}
-        
-        # 장소 정보 파싱
+
         places = []
-        for poi in data["searchPoiInfo"]["pois"]["poi"]:
+        for poi in pois:
             try:
                 place = {
                     "id": poi.get("id"),
                     "name": poi.get("name"),
                     "lat": float(poi.get("noorLat")),
                     "lng": float(poi.get("noorLon")),
-                    "address": poi.get("address").get("fullAddress"),
-                    "distance": int(float(poi.get("radius", "0")))  # 문자열이 올 수 있어 안전하게 변환
+                    "address": poi.get("address", {}).get("fullAddress")
                 }
+
+                if lat and lng and use_current_location:
+                    place["distance"] = calculate_distance(lat, lng, place["lat"], place["lng"])
+
                 places.append(place)
             except Exception as e:
                 logger.warning(f"장소 데이터 처리 오류: {e}")
-        
-        # 거리 순 정렬
-        places.sort(key=lambda x: x.get("distance", 0))
-        
-        logger.info(f"카테고리 검색 결과 {len(places)}개 반환")
+
+        if lat and lng and use_current_location:
+            places.sort(key=lambda x: x.get("distance", float("inf")))
+
+        logger.info(f"검색 결과 {len(places)}개 반환")
         return {"places": places}
+
     except Exception as e:
-        logger.error(f"카테고리 검색 API 오류: {e}")
+        logger.error(f"검색 API 오류: {e}")
         return {"error": f"검색 중 오류가 발생했습니다: {str(e)}"}
 
 # 카테고리 매핑 정의
@@ -266,118 +246,6 @@ def get_category_code(query):
     
     # 매칭되는 카테고리가 없으면 일반 POI 검색 사용을 위해 None 반환
     return None
-
-# 장소 검색 엔드포인트
-@router.get("/api/search")
-async def search_place(
-    keyword: str, 
-    lat: Optional[float] = None, 
-    lng: Optional[float] = None, 
-    radius: int = 3000,
-    use_current_location: bool = False
-):
-    """키워드로 장소 검색"""
-    if not keyword:
-        return {"error": "검색어가 비어 있습니다."}
-    
-    try:
-        # TMap POI 검색 API 호출
-        url = "https://apis.openapi.sk.com/tmap/pois"
-        
-        # 로깅 - 요청 정보 상세 기록
-        logger.info(f"검색 키워드: {keyword}, 위치: {lat}, {lng}, 반경: {radius}m")
-        
-        # 1. 위치 정보가 없으면 키워드 검색만 실행
-        if not (lat and lng and use_current_location):
-            logger.info("위치 정보 없음: 키워드만으로 검색")
-            params = {
-                "version": "1",
-                "searchKeyword": keyword,
-                "count": 20,  # 정수값으로 설정 (문자열 X)
-                "reqCoordType": "WGS84GEO",  # 요청 좌표계 추가
-                "resCoordType": "WGS84GEO",  # 응답 좌표계 추가
-                "appKey": APP_KEY
-            }
-            
-            response = requests.get(url, params=params)
-            if response.status_code != 200:
-                logger.error(f"키워드 검색 API 오류: {response.status_code}, {response.text}")
-                return {"error": f"키워드 검색 실패: {response.status_code}"}
-                
-            data = response.json()
-        
-        # 2. 위치 정보가 있으면 위치 기반 검색 시도
-        else:
-            # API 요청 URL 구성 (파라미터 직접 포함)
-            lat_rounded = round(lat, 6)  # 소수점 6자리로 제한
-            lng_rounded = round(lng, 6)  # 소수점 6자리로 제한
-            radius_int = int(radius)     # 정수로 확실하게 변환
-            
-            # URL 직접 구성 (쿼리 파라미터 수동 생성)
-            url = "https://apis.openapi.sk.com/tmap/pois"
-            url_with_params = f"{url}?version=1&searchKeyword={urllib.parse.quote(keyword)}&count=20&appKey={APP_KEY}&reqCoordType=WGS84GEO&resCoordType=WGS84GEO&centerLat={lat_rounded}&centerLon={lng_rounded}&radius={radius_int}"
-            
-            logger.info(f"T-map POI API 요청 URL: {url_with_params}")
-            
-            # 직접 구성한 URL로 요청
-            response = requests.get(url_with_params)
-            
-            # 위치 기반 검색 실패 시
-            if response.status_code != 200:
-                logger.error(f"POI 검색 API 오류 응답: {response.status_code}")
-                logger.error(f"응답 내용: {response.text}")
-                
-                # 백업: 키워드만 사용하여 재시도
-                logger.info("키워드만 사용하여 재시도...")
-                backup_url = f"{url}?version=1&searchKeyword={urllib.parse.quote(keyword)}&count=20&appKey={APP_KEY}&reqCoordType=WGS84GEO&resCoordType=WGS84GEO"
-                
-                response = requests.get(backup_url)
-                if response.status_code == 204:
-                    logger.warning("백업 검색 결과 없음 (204 No Content)")
-                    return {"places": [], "warning": "검색 결과가 없습니다."}
-                elif response.status_code != 200:
-                    logger.error(f"백업 검색 실패: {response.status_code}")
-                    logger.error(f"백업 응답: {response.text}")
-                    return {"error": f"검색 실패: {response.status_code}"}
-                
-                logger.info("백업 POI 검색 성공")
-                data = response.json()
-            else:
-                data = response.json()
-        
-        # 검색 결과 없음 처리
-        if not data.get("searchPoiInfo", {}).get("pois", {}).get("poi"):
-            return {"places": [], "warning": "검색 결과가 없습니다."}
-        
-        # 장소 정보 파싱
-        places = []
-        for poi in data["searchPoiInfo"]["pois"]["poi"]:
-            try:
-                place = {
-                    "id": poi.get("id"),
-                    "name": poi.get("name"),
-                    "lat": float(poi.get("noorLat")),
-                    "lng": float(poi.get("noorLon")),
-                    "address": poi.get("address").get("fullAddress")
-                }
-                
-                # 현재 위치가 있으면 거리 계산
-                if lat and lng and use_current_location:
-                    place["distance"] = calculate_distance(lat, lng, place["lat"], place["lng"])
-                
-                places.append(place)
-            except Exception as e:
-                logger.warning(f"장소 데이터 처리 오류: {e}")
-        
-        # 위치 정보가 있으면 거리 기준 정렬
-        if lat and lng and use_current_location:
-            places.sort(key=lambda x: x.get("distance", float("inf")))
-        
-        logger.info(f"검색 결과 {len(places)}개 반환")
-        return {"places": places}
-    except Exception as e:
-        logger.error(f"검색 API 오류: {e}")
-        return {"error": f"검색 중 오류가 발생했습니다: {str(e)}"}
 
 @router.post("/api/natural_language_search")
 async def natural_language_search(request: NaturalLanguageSearchRequest):

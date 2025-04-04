@@ -7,26 +7,30 @@ from fast_api.models.segmentation import segment_sidewalk_road
 no_block_start_time = None
 previous_statuses = {}
 message_counter = {}
-current_display_warnings = []
+current_display_warning = None
 last_audio_filename = None
-is_audio_playing = False
+audio_queue = []
 danger_warning_boxes = {}
 guide_block_detected_counter = 0
 guide_block_detected_time = None
 
 def reset_audio_status():
-    global is_audio_playing
-    is_audio_playing = False
+    global audio_queue
+    if audio_queue:
+        # 다음 오디오 대기열이 있을 경우 다음 오디오 반환
+        return audio_queue.pop(0)
+    return None
 
-def set_audio_playing():
-    global is_audio_playing
-    is_audio_playing = True
+def set_audio_playing(filename):
+    global last_audio_filename
+    last_audio_filename = filename
 
 def extract_warnings(frame, block_results, obstacle_results, depth_map):
     global no_block_start_time
-    global message_counter, current_display_warnings, last_audio_filename
-    global is_audio_playing, previous_statuses, danger_warning_boxes
+    global message_counter, current_display_warning, last_audio_filename
+    global previous_statuses, danger_warning_boxes
     global guide_block_detected_counter, guide_block_detected_time
+    global audio_queue
 
     start_time = time.time()
     temp_warnings = []
@@ -53,7 +57,7 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
         stop_center_x = (x1_s + x2_s) / 2
         stop_center_y = (y1_s + y2_s) / 2
 
-        left, right, above, below = False, False, False, False
+        left = right = above = below = False
 
         for r in block_results:
             for box in r.boxes:
@@ -159,80 +163,59 @@ def extract_warnings(frame, block_results, obstacle_results, depth_map):
         message_counter.pop(no_guide_msg, None)
 
     # === 세그멘테이션 기반 도로 감지 ===
-    if not has_block:
-        seg_map = segment_sidewalk_road(frame)
-        h, w = seg_map.shape
-        bottom_region = seg_map[int(h * 0.7):, :]
+    seg_map = segment_sidewalk_road(frame)
+    h, w = seg_map.shape
+    bottom_region = seg_map[int(h * 0.7):, :]
 
-        left_half = bottom_region[:, :w // 2]
-        right_half = bottom_region[:, w // 2:]
+    left_half = bottom_region[:, :w // 2]
+    right_half = bottom_region[:, w // 2:]
 
-        ROAD_CLASSES = [0, 4]
+    ROAD_CLASSES = [0, 4]
 
-        left_ratio = np.mean(np.isin(left_half, ROAD_CLASSES))
-        right_ratio = np.mean(np.isin(right_half, ROAD_CLASSES))
+    left_ratio = np.mean(np.isin(left_half, ROAD_CLASSES))
+    right_ratio = np.mean(np.isin(right_half, ROAD_CLASSES))
 
-        if left_ratio > 0.2:
-            temp_warnings.append("Road detected on the LEFT. Move right to stay on the sidewalk.")
-        elif right_ratio > 0.2:
-            temp_warnings.append("Road detected on the RIGHT. Move left to stay on the sidewalk.")
-
-
-    # # === 세그멘테이션 기반 도로 감지 ===
-    # if not has_block:
-    #     seg_map = segment_sidewalk_road(frame)
-    #     if seg_map is None:
-    #         print("[DEBUG] seg_map is None!")
-    #     else:
-    #         print("[DEBUG] seg_map shape:", seg_map.shape)
-    #         print("Unique classes in seg_map:", np.unique(seg_map))
-    #     h, w = seg_map.shape
-
-    #     left_half = seg_map[:, :w // 2]
-    #     right_half = seg_map[:, w // 2:]
-
-    #     ROAD_CLASSES = [0, 4]
-
-    #     left_ratio = np.mean(np.isin(left_half, ROAD_CLASSES))
-    #     right_ratio = np.mean(np.isin(right_half, ROAD_CLASSES))
-
-    #     if left_ratio > 0.3:
-    #         temp_warnings.append("Road detected on the LEFT. Move right to stay on the sidewalk.")
-    #     if right_ratio > 0.3:
-    #         temp_warnings.append("Road detected on the RIGHT. Move left to stay on the sidewalk.")
+    if left_ratio > 0.2:
+        temp_warnings.append("Road detected on the LEFT. Move right to stay on the sidewalk.")
+    elif right_ratio > 0.2:
+        temp_warnings.append("Road detected on the RIGHT. Move left to stay on the sidewalk.")
 
     # === 경고 카운트 및 출력 확정 ===
     confirmed_warnings = []
     for w in temp_warnings:
         message_counter[w] = message_counter.get(w, 0) + 1
-        if message_counter[w] >= 4:
+        if message_counter[w] >= 2:
             confirmed_warnings.append(w)
 
-    # 오래된 메시지는 제거
     keys_to_delete = [k for k in message_counter if k not in temp_warnings]
     for k in keys_to_delete:
         del message_counter[k]
 
     audio_filename = None
     if confirmed_warnings:
+        # 우선순위 정렬
         confirmed_warnings.sort(key=lambda w: priority_order.get(w, 99))
-        new_warning = confirmed_warnings[0]
-        if not current_display_warnings or new_warning != current_display_warnings[0]:
-            current_display_warnings = [new_warning]
+
+        for new_warning in confirmed_warnings:
+            # UI 표시용 경고는 가장 높은 우선순위로 설정
+            if current_display_warning is None:
+                current_display_warning = new_warning
+
+            # 새로운 오디오가 큐에 없다면 추가 (재생 중과 무관하게 쌓는다)
             if new_warning in warning_audio_map:
                 filename = warning_audio_map[new_warning]
-                if filename != last_audio_filename and not is_audio_playing:
-                    audio_filename = filename
-                    last_audio_filename = filename
-                    is_audio_playing = True
-    else:
-        current_display_warnings = []
-        last_audio_filename = None
-        is_audio_playing = False
+                if filename not in audio_queue:
+                    audio_queue.append(filename)
 
-    print(f"[DEBUG] Processed in {int((time.time() - start_time)*1000)} ms | Warning: {current_display_warnings}")
-    print(f"[DEBUG] Confirmed warnings: {confirmed_warnings}")
-    print(f"[DEBUG] audio_filename selected: {audio_filename}")
-    print(f"[DEBUG] last_audio_filename: {last_audio_filename}")
-    print(f"[DEBUG] is_audio_playing: {is_audio_playing}")
-    return current_display_warnings, audio_filename
+        # 오디오가 재생 중이 아니고 큐가 있다면 다음 오디오 재생
+        if last_audio_filename is None and audio_queue:
+            audio_filename = audio_queue.pop(0)
+            set_audio_playing(audio_filename)
+
+    else:
+        # 경고가 없으면 상태 초기화
+        current_display_warning = None
+        last_audio_filename = None
+        audio_queue.clear()
+
+    return [current_display_warning] if current_display_warning else [], audio_filename

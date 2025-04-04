@@ -3,7 +3,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# from pyngrok import ngrok
 import cv2
 import numpy as np
 import time
@@ -11,10 +10,10 @@ import os
 
 from fast_api.models.guide_block import detect_blocks
 from fast_api.models.obstacle_depth import detect_obstacles, estimate_depth
-from fast_api.utils.state_manager import extract_warnings, reset_audio_status, is_audio_playing, set_audio_playing
-
-
-
+from fast_api.models.segmentation import segment_sidewalk_road, decode_segmap
+from fast_api.utils.state_manager import extract_warnings, reset_audio_status, set_audio_playing
+from fast_api.utils.audio_map import warning_audio_map
+from fast_api.utils.visualization_BB import draw_obstacle_boxes
 
 router = APIRouter()
 templates = Jinja2Templates(directory="navigation_app/templates")
@@ -23,69 +22,10 @@ templates = Jinja2Templates(directory="navigation_app/templates")
 async def detection_home(request: Request):
     return templates.TemplateResponse("detection.html", {"request": request})
 
-
-# @router.get("/")
-# async def index():
-#     html_content = """
-#     <html>
-#     <head><title>Mobile Real-Time Test</title></head>
-#     <body>
-#         <h1>Mobile Camera Stream and Warnings</h1>
-#         <video id=\"video\" autoplay playsinline width=\"640\" height=\"640\" style=\"border:1px solid black;\"></video><br>
-#         <h2>Warnings:</h2>
-#         <div id=\"warnings\" style=\"font-size:20px; color:red;\"></div>
-#         <script>
-#             const video = document.getElementById("video");
-#             const warningsDiv = document.getElementById("warnings");
-#             let currentAudio = null;
-
-#             navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 640, facingMode: "environment" } })
-#             .then(stream => { video.srcObject = stream; })
-#             .catch(err => { console.error("Error accessing camera:", err); });
-
-#             async function sendFrame() {
-#                 const tempCanvas = document.createElement("canvas");
-#                 tempCanvas.width = 640;
-#                 tempCanvas.height = 640;
-#                 const tempCtx = tempCanvas.getContext("2d");
-#                 tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-#                 tempCanvas.toBlob(async blob => {
-#                     const formData = new FormData();
-#                     formData.append("file", blob, "frame.jpg");
-#                     try {
-#                         const start = performance.now();
-#                         const response = await fetch("/process_warning", {
-#                             method: "POST",
-#                             body: formData
-#                         });
-#                         const data = await response.json();
-#                         const end = performance.now();
-#                         console.log(`Response Time: ${(end - start).toFixed(1)} ms`);
-#                         warningsDiv.innerHTML = data.warnings.join("<br>");
-#                         if (data.audio_url) {
-#                             if (!currentAudio || currentAudio.ended) {
-#                                 currentAudio = new Audio(data.audio_url);
-#                                 currentAudio.play();
-#                                 currentAudio.onended = () => {
-#                                     fetch("/audio_finished");
-#                                 }
-#                             }
-#                         }
-#                     } catch (err) {
-#                         console.error("Error sending frame:", err);
-#                     }
-#                 }, "image/jpeg");
-#             }
-
-#             setInterval(sendFrame, 200);
-#         </script>
-#     </body>
-#     </html>
-#     """
-#     return HTMLResponse(content=html_content)
-
 @router.post("/process_warning")
-async def process_warning(file: UploadFile = File(...)):
+async def process_warning(request: Request, file: UploadFile = File(...)):
+    screen = request.query_params.get("screen", "all")  # depth, obstacle, segmentation, all
+
     contents = await file.read()
     np_arr = np.frombuffer(contents, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -96,15 +36,45 @@ async def process_warning(file: UploadFile = File(...)):
 
     warnings, audio_filename = extract_warnings(frame, block_results, obstacle_results, depth_map)
     audio_url = f"/static_audio/{audio_filename}" if audio_filename else None
-    return JSONResponse(content={"warnings": warnings, "audio_url": audio_url})
+
+    # 미리 정의
+    depthmap_url = None
+    obstacle_url = None
+    segmentation_url = None
+
+    # 선택된 화면만 처리
+    if screen == "depth":
+        depth_norm = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX)
+        depth_color = cv2.applyColorMap(depth_norm.astype(np.uint8), cv2.COLORMAP_JET)
+        depthmap_path = "navigation_app/static/depthmap_latest.jpg"
+        cv2.imwrite(depthmap_path, depth_color)
+        depthmap_url = "/static/depthmap_latest.jpg"
+
+    elif screen == "obstacle":
+        obstacle_vis = draw_obstacle_boxes(frame.copy(), obstacle_results)
+        obstacle_vis_path = "navigation_app/static/obstacle_latest.jpg"
+        cv2.imwrite(obstacle_vis_path, obstacle_vis)
+        obstacle_url = "/static/obstacle_latest.jpg"
+
+    elif screen == "segmentation":
+        seg_map = segment_sidewalk_road(frame)
+        seg_vis = decode_segmap(seg_map)
+        segmentation_path = "navigation_app/static/segmentation_latest.jpg"
+        cv2.imwrite(segmentation_path, seg_vis)
+        segmentation_url = "/static/segmentation_latest.jpg"
+
+    return JSONResponse(content={
+        "warnings": warnings,
+        "audio_url": audio_url,
+        "depthmap_url": depthmap_url,
+        "obstacle_url": obstacle_url,
+        "segmentation_url": segmentation_url
+    })
 
 @router.get("/audio_finished")
 async def audio_finished():
     reset_audio_status()
     return JSONResponse(content={"status": "ok"})
-
-# public_url = ngrok.connect(8000)
-# print("Ngrok Public URL:", public_url)
 
 @router.get("/ping")
 async def ping():
