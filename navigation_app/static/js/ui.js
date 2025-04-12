@@ -2,10 +2,9 @@
 
 class UIService {
   constructor() {
-    // 초기화 지연: DOM 로딩 이후에 설정함
+    // DOM 요소는 init() 호출 시점에 초기화
   }
 
-  // DOM 요소 초기화 함수
   init() {
     this.statusElement = document.getElementById('status');
     this.destinationInput = document.getElementById('destination');
@@ -31,11 +30,9 @@ class UIService {
 
   setStatus(message, isLoading = false) {
     if (!this.statusElement) return;
-    if (isLoading) {
-      this.statusElement.innerHTML = `<div class="spinner"></div> ${message}`;
-    } else {
-      this.statusElement.textContent = message;
-    }
+    this.statusElement.innerHTML = isLoading
+      ? `<div class="spinner"></div> ${message}`
+      : message;
   }
 
   setDestinationInput(value) {
@@ -50,10 +47,19 @@ class UIService {
 
   setVoiceButtonRecording(isRecording) {
     if (!this.voiceButton) return;
-    if (isRecording) {
-      this.voiceButton.classList.add('voice-recording');
-    } else {
-      this.voiceButton.classList.remove('voice-recording');
+
+    this.voiceButton.classList.toggle('voice-recording', isRecording);
+
+    const bigVoiceButton = document.getElementById('big-voice-input');
+    if (bigVoiceButton) {
+      bigVoiceButton.classList.toggle('voice-recording', isRecording);
+    }
+  }
+
+  toggleBigVoiceButton(show) {
+    const bigVoiceButton = document.getElementById('big-voice-input');
+    if (bigVoiceButton) {
+      bigVoiceButton.style.display = show ? 'flex' : 'none';
     }
   }
 
@@ -66,8 +72,9 @@ class UIService {
   updateNavigationInfo(distance, time, nextDirection) {
     if (this.distanceElement) this.distanceElement.textContent = distance;
     if (this.timeElement) this.timeElement.textContent = time;
-    if (this.nextDirectionElement && nextDirection)
+    if (this.nextDirectionElement && nextDirection) {
       this.nextDirectionElement.textContent = nextDirection;
+    }
   }
 
   setButtonEnabled(buttonId, enabled) {
@@ -81,6 +88,38 @@ class UIService {
     if (this.searchResultsDiv) {
       this.searchResultsDiv.style.display = 'none';
     }
+  }
+
+  displaySearchResults(places, currentLocation, onSelect) {
+    if (!this.searchResultsDiv) return;
+
+    this.searchResultsDiv.innerHTML = '';
+    const ul = document.createElement('ul');
+
+    places.forEach(place => {
+      const li = document.createElement('li');
+      li.textContent = place.name;
+
+      if (place.distance) {
+        const distanceSpan = document.createElement('div');
+        distanceSpan.className = 'distance-info';
+        distanceSpan.textContent = place.distance < 1000
+          ? `${place.distance}m`
+          : `${(place.distance / 1000).toFixed(1)}km`;
+        li.appendChild(distanceSpan);
+      }
+
+      li.addEventListener('click', () => {
+        if (typeof onSelect === 'function') {
+          onSelect(place);
+        }
+      });
+
+      ul.appendChild(li);
+    });
+
+    this.searchResultsDiv.appendChild(ul);
+    this.searchResultsDiv.style.display = 'block';
   }
 
   updateLocationDebug(lat, lng, accuracy, permission) {
@@ -103,72 +142,40 @@ class UIService {
       : '<i class="fas fa-chevron-up"></i>';
   }
 
-  displaySearchResults(places, currentLocation, onSelect) {
-    if (!this.searchResultsDiv) return;
-  
-    this.searchResultsDiv.innerHTML = '';  // 기존 결과 초기화
-  
-    const ul = document.createElement('ul');
-  
-    places.forEach(place => {
-      const li = document.createElement('li');
-      li.textContent = place.name;
-  
-      // 거리 정보 추가
-      if (place.distance) {
-        const distanceSpan = document.createElement('div');
-        distanceSpan.className = 'distance-info';
-        distanceSpan.textContent = `${place.distance < 1000 
-          ? `${place.distance}m` 
-          : `${(place.distance / 1000).toFixed(1)}km`}`;
-        li.appendChild(distanceSpan);
-      }
-  
-      li.addEventListener('click', () => {
-        if (typeof onSelect === 'function') {
-          onSelect(place);
-        }
-      });
-  
-      ul.appendChild(li);
-    });
-  
-    this.searchResultsDiv.appendChild(ul);
-    this.searchResultsDiv.style.display = 'block';
-  }
-  
-  // 위치 디버그 UI 초기화
   initLocationDebugUI() {
+    const navigationView = document.getElementById('navigation-view');
+    if (!navigationView) return;
+  
     const locationDebug = document.createElement('div');
     locationDebug.id = 'location-debug';
     locationDebug.style.cssText = `
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: rgba(0,0,0,0.7);
-    color: white;
-    padding: 8px;
-    border-radius: 5px;
-    font-size: 11px;
-    max-width: 200px;
-    z-index: 1000;
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      max-width: 200px;
+      z-index: 1000;
     `;
-
     locationDebug.innerHTML = `
-    <div>위치 권한: <span id="loc-permission">확인 중...</span></div>
-    <div>현재 위도: <span id="loc-lat">N/A</span></div>
-    <div>현재 경도: <span id="loc-lng">N/A</span></div>
-    <div>정확도: <span id="loc-accuracy">N/A</span>m</div>
-    <button id="refresh-location" style="font-size: 11px; padding: 3px 5px; margin-top: 5px;">위치 갱신</button>
+      <div>위치 권한: <span id="loc-permission">확인 중...</span></div>
+      <div>현재 위도: <span id="loc-lat">N/A</span></div>
+      <div>현재 경도: <span id="loc-lng">N/A</span></div>
+      <div>정확도: <span id="loc-accuracy">N/A</span>m</div>
+      <button id="refresh-location" style="font-size: 11px; padding: 3px 5px; margin-top: 5px;">위치 갱신</button>
     `;
-    document.body.appendChild(locationDebug);
+  
+    // 👉 여기: navigation-view 안에만 추가되도록
+    navigationView.appendChild(locationDebug);
   }
 
-  // 스타일 초기화
   initStyles() {
     const style = document.createElement('style');
     style.textContent = `
-    .spinner {
+      .spinner {
         display: inline-block;
         width: 20px;
         height: 20px;
@@ -178,60 +185,60 @@ class UIService {
         animation: spin 1s ease-in-out infinite;
         vertical-align: middle;
         margin-right: 8px;
-    }
+      }
 
-    @keyframes spin {
+      @keyframes spin {
         to { transform: rotate(360deg); }
-    }
+      }
 
-    .voice-recording {
+      .voice-recording {
         background-color: #f44336 !important;
-    }
+      }
 
-    .current-position-marker {
+      .current-position-marker {
         animation: pulse 1.5s infinite;
-    }
+      }
 
-    @keyframes pulse {
+      @keyframes pulse {
         0% { opacity: 1; }
         50% { opacity: 0.4; }
         100% { opacity: 1; }
-    }
+      }
 
-    #search-results {
+      #search-results {
         max-height: 300px;
         overflow-y: auto;
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
+      }
 
-    #search-results ul {
+      #search-results ul {
         list-style: none;
         padding: 0;
         margin: 0;
-    }
+      }
 
-    #search-results li {
+      #search-results li {
         padding: 10px 15px;
         border-bottom: 1px solid #eee;
         cursor: pointer;
-    }
+      }
 
-    #search-results li:hover {
+      #search-results li:hover {
         background-color: #f5f5f5;
-    }
+      }
 
-    .distance-info {
+      .distance-info {
         color: #0066cc;
         font-weight: bold;
         margin-top: 5px;
-    }
+      }
 
-    .no-location {
+      .no-location {
         color: #cc0000;
         font-style: italic;
-    }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -254,6 +261,18 @@ class UIService {
     if (handlers.onToggleVoice && this.toggleVoiceButton)
       this.toggleVoiceButton.addEventListener('click', handlers.onToggleVoice);
 
+    const bigVoiceButton = document.getElementById('big-voice-input');
+    if (bigVoiceButton && handlers.onBigVoiceInput)
+      bigVoiceButton.addEventListener('click', handlers.onBigVoiceInput);
+
+    const goToDetectionButton = document.getElementById('go-to-detection');
+    if (goToDetectionButton && handlers.onGoToDetection)
+      goToDetectionButton.addEventListener('click', handlers.onGoToDetection);
+
+    const goToDetectionNavButton = document.getElementById('go-to-detection-nav');
+    if (goToDetectionNavButton && handlers.onGoToDetection)
+      goToDetectionNavButton.addEventListener('click', handlers.onGoToDetection);
+
     const refreshLocationButton = document.getElementById('refresh-location');
     if (refreshLocationButton && handlers.onRefreshLocation)
       refreshLocationButton.addEventListener('click', handlers.onRefreshLocation);
@@ -262,7 +281,6 @@ class UIService {
 
 const ui = new UIService();
 
-// DOMContentLoaded 시점에 초기화
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => ui.init());
 } else {

@@ -380,8 +380,8 @@ async def get_route(request: RouteRequest):
         session_id = str(uuid.uuid4())
         
         # 총 거리 및 시간 정보
-        total_distance = data["features"][0]["properties"]["totalDistance"]
-        total_time = format_time(data["features"][0]["properties"]["totalTime"])
+        total_distance = int(data["features"][0]["properties"]["totalDistance"])  # 수정: int로 변환
+        total_time = format_time(data["features"][0]["properties"]["totalTime"])  # 수정: 시간 형식으로 변환
         
         # 경로 정보 저장
         route_sessions[session_id] = {
@@ -471,11 +471,13 @@ async def guidance_update(request: GuidanceUpdateRequest):
     
     return {
         "next_guidance": next_guidance,
-        "distance_to_next": int(distance_to_next),
+        "distance_to_next": int(distance_to_next),  # 수정: int로 변환
         "direction": direction,
-        "remaining_distance": int(remaining_distance),
-        "remaining_time": int(remaining_time)
-    }
+        "remaining_distance": int(remaining_distance),  # 수정: int로 변환
+        "remaining_time": int(remaining_time),  # 수정: int로 변환
+        "time": format_time(int(remaining_time)),  # 추가: 시간 포맷팅
+        "guidance": next_guidance["description"] if next_guidance else direction  # 추가: 안내 문구
+}
 
 #---------------------------------------------------------------------------------
 # 유틸리티 함수들
@@ -495,7 +497,8 @@ def calculate_distance(lat1, lng1, lat2, lng2):
         math.sin(delta_lambda/2) * math.sin(delta_lambda/2)
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     
-    return R * c  # 미터 단위 거리
+    # 수정: 정수로 반환
+    return int(R * c)  # 미터 단위 거리
 
 def point_to_line_distance(px, py, x1, y1, x2, y2):
     """점과 직선 사이의 최단 거리 계산"""

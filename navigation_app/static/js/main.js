@@ -4,29 +4,30 @@ import apiService from './api.js';
 import speechService from './speech.js';
 import navigationService from './navigation.js';
 import mapService from './map.js';
+import { enqueueMp3 } from './speech.js';
 
 // 전역 변수
 let currentPositionData = null;
 let destinationData = null;
 let currentGuidance = '';
 let isVoiceEnabled = true;
+let conversationState = 'idle'; // 'idle', 'asking_destination', 'confirming_destination', 'confirming_search_result'
+let searchResultItems = [];
+
+// 거리 형식화 함수 - 소수점 1자리까지만 표시
+function formatDistance(meters) {
+    if (!meters && meters !== 0) return "";
+    return meters >= 1000 ? `${(meters / 1000).toFixed(1)}km` : `${Math.round(meters)}m`;
+}
 
 // 앱 초기화 함수
 async function initApp() {
-    console.log('애플리케이션 초기화...');
-    
     try {
-        // 지도 초기화 (기본 위치 없이)
         const map = mapService.initMap(null, null);
-        
-        if (!map) {
-            throw new Error('지도를 초기화할 수 없습니다');
-        }
-        
-        // 음성 인식 초기화
+        if (!map) throw new Error('지도를 초기화할 수 없습니다');
+
         speechService.initSpeechRecognition(handleVoiceInput);
-        
-        // UI 이벤트 리스너 등록
+
         ui.registerEventListeners({
             onSearch: handleSearch,
             onVoiceInput: handleVoiceButtonClick,
@@ -36,31 +37,30 @@ async function initApp() {
             onTogglePanel: ui.togglePanel.bind(ui),
             onReadInstruction: handleReadInstruction,
             onRefreshLocation: handleRefreshLocation,
-            onToggleVoice: handleToggleVoice
+            onToggleVoice: handleToggleVoice,
+            onBigVoiceInput: handleBigVoiceButtonClick,
+            onGoToDetection: handleGoToDetection
         });
-        
-        // 위치 권한 요청 및 위치 추적 시작
-        ui.setStatus('위치 정보 권한을 확인 중입니다...');
-        
+
         const permissionGranted = await checkLocationPermission();
-        console.log('위치 권한 상태:', permissionGranted);
-        
-        // 현재 위치 가져오기 (최대 3번 시도)
-        ui.setStatus('현재 위치를 확인 중입니다...');
         const locationSuccess = await getLocationWithRetry(3);
-        
+
         if (locationSuccess) {
-            ui.setStatus('현재 위치를 확인했습니다. 목적지를 검색하세요.');
-            speechService.speak('준비가 완료되었습니다. 목적지를 검색하세요.');
+            ui.setStatus('현재 위치를 확인했습니다. 목적지를 말씀해주세요.');
+            speechService.speak('준비가 완료되었습니다. 목적지를 말씀해주세요.', 'high');
+            setTimeout(() => {
+                conversationState = 'asking_destination';
+                toggleBigVoiceButton(true);
+                handleVoiceButtonClick();
+            }, 2000);
         } else {
             ui.setStatus('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.');
             speechService.speak('위치 정보에 접근할 수 없습니다. 브라우저 설정에서 위치 접근을 허용해주세요.');
         }
-        
-        // 지속적인 위치 추적 시작
+
         startLocationTracking();
+        initBigVoiceButton();
     } catch (error) {
-        console.error('초기화 오류:', error);
         ui.setStatus('애플리케이션 초기화 중 오류가 발생했습니다: ' + error.message);
         speechService.speak('애플리케이션 초기화 중 오류가 발생했습니다.');
     }
@@ -135,6 +135,33 @@ async function getLocationWithRetry(maxRetries = 5) {
         
         tryGetLocation();
     });
+}
+
+function initBigVoiceButton() {
+    const bigVoiceButton = document.getElementById('big-voice-input');
+    if (!bigVoiceButton) return;
+    bigVoiceButton.addEventListener('click', handleBigVoiceButtonClick);
+}
+
+function handleBigVoiceButtonClick() {
+    handleVoiceButtonClick();
+}
+
+function toggleBigVoiceButton(show) {
+    const bigVoiceButton = document.getElementById('big-voice-input');
+    if (!bigVoiceButton) return;
+    bigVoiceButton.style.display = show ? 'flex' : 'none';
+}
+
+function handleGoToDetection() {
+    if (navigationService.isNavigationActive()) {
+        speechService.speak("실시간 장애물 탐지 화면으로 이동합니다. 내비게이션은 계속 실행됩니다.", "high");
+    }
+    document.getElementById("detection-view").style.display = "block";
+    document.getElementById("navigation-view").style.display = "none";
+    if (typeof startDetection === "function") {
+        startDetection();
+    }
 }
 
 // 현재 위치 가져오기 함수 수정
@@ -501,27 +528,21 @@ function handleStopNavigation() {
 
 // 음성 버튼 클릭 핸들러
 function handleVoiceButtonClick() {
-    console.log('음성 버튼 클릭됨');
-    
-    // 마이크 권한 확인
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        ui.setStatus('이 브라우저는 마이크 접근을 지원하지 않습니다.');
-        speechService.speak('이 브라우저는 마이크 접근을 지원하지 않습니다.');
-        return;
-    }
-    
-    // 사용자에게 피드백
+    const promptMap = {
+        'asking_destination': '목적지를 말씀해 주세요.',
+        'confirming_destination': '네 또는 아니오로 대답해주세요.',
+        'confirming_search_result': '첫 번째 목적지로 안내를 시작할까요? 네 또는 아니오로 대답해주세요.'
+    };
+    const promptMessage = promptMap[conversationState] || '무엇을 도와드릴까요?';
+
     ui.setStatus('음성으로 말씀해주세요...');
-    speechService.speak('목적지를 말씀해 주세요.', 'high');
-    
-    // 약간의 지연 후 음성 인식 시작 (음성 안내 후 시작하도록)
+    speechService.speak(promptMessage, 'high');
+
     setTimeout(() => {
         ui.setVoiceButtonRecording(true);
         try {
             speechService.startListening();
-            console.log('음성 인식 시작됨');
         } catch (error) {
-            console.error('음성 인식 시작 오류:', error);
             ui.setStatus('음성 인식을 시작할 수 없습니다.');
             ui.setVoiceButtonRecording(false);
         }
@@ -562,27 +583,55 @@ function refreshCurrentLocation(callback) {
 
 // 음성 인식 결과 처리 함수
 function handleVoiceInput(transcript) {
-    console.log('음성 인식 결과 받음:', transcript);
     ui.setVoiceButtonRecording(false);
-    
     if (!transcript || typeof transcript !== 'string' || transcript.trim() === '') {
         ui.setStatus('음성이 인식되지 않았습니다.');
         return;
     }
-    
-    // 검색창에 인식된 텍스트 입력
-    ui.setDestinationInput(transcript);
-    ui.setStatus(`인식된 텍스트: "${transcript}"`);
-    
-    // 위치 정보 확인 후 검색
-    if (!currentPositionData) {
-        refreshCurrentLocation(() => {
-            // transcript를 명시적으로 전달
+
+    switch (conversationState) {
+        case 'idle':
+            ui.setDestinationInput(transcript);
             handleSearch(transcript);
-        });
-    } else {
-        // transcript를 명시적으로 전달
-        handleSearch(transcript);
+            break;
+        case 'asking_destination':
+            ui.setDestinationInput(transcript);
+            speechService.speak(`목적지를 ${transcript}로 설정할까요? 네 또는 아니오로 대답해주세요.`, 'high');
+            conversationState = 'confirming_destination';
+            setTimeout(() => handleVoiceButtonClick(), 3000);
+            break;
+        case 'confirming_destination': {
+            const answer = transcript.toLowerCase();
+            if (/네|예|응|좋아/.test(answer)) {
+                handleSearch(ui.destinationInput.value);
+                conversationState = 'idle';
+            } else if (/아니|아니오|아냐/.test(answer)) {
+                speechService.speak('목적지를 다시 말씀해주세요.', 'high');
+                ui.setDestinationInput('');
+                conversationState = 'asking_destination';
+                setTimeout(() => handleVoiceButtonClick(), 2000);
+            } else {
+                speechService.speak('네 또는 아니오로 대답해주세요. 목적지를 설정할까요?', 'high');
+                setTimeout(() => handleVoiceButtonClick(), 2500);
+            }
+            break;
+        }
+        case 'confirming_search_result': {
+            const answer = transcript.toLowerCase();
+            if (/네|예|응|좋아/.test(answer)) {
+                const firstPlace = searchResultItems[0];
+                handleSelectDestination(firstPlace);
+                setTimeout(() => handleStartNavigation(), 2000);
+                conversationState = 'idle';
+            } else if (/아니|아니오|아냐/.test(answer)) {
+                speechService.speak('검색 결과 목록에서 원하시는 목적지를 선택해주세요.', 'high');
+                conversationState = 'idle';
+            } else {
+                speechService.speak('네 또는 아니오로 대답해주세요. 첫 번째 목적지로 안내를 시작할까요?', 'high');
+                setTimeout(() => handleVoiceButtonClick(), 2500);
+            }
+            break;
+        }
     }
 }
 

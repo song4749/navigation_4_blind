@@ -10,6 +10,5 @@
 *.pptx
 *.png
 .env
-*.mp3
 *.pt
 *.yaml

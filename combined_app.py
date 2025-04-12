@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import requests
-from fast_api.detection_router import router as detection_router
+from detection_app.detection_router import router as detection_router
 from navigation_app.navigation_router import router as navigation_router
 from navigation_app.navigation_router import logger, APP_KEY
 
@@ -26,7 +26,7 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "navigation_app" / "static"
 TEMPLATES_DIR = BASE_DIR / "navigation_app" / "templates"
-AUDIO_DIR = BASE_DIR / "fast_api" / "mp3"
+AUDIO_DIR = BASE_DIR / "detection_app" / "mp3"
 
 # 디버깅용 출력
 # print("STATIC_DIR:", STATIC_DIR)

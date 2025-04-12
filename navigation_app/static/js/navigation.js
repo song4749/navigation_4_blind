@@ -62,7 +62,7 @@ class NavigationService {
 
         try {
             // 업데이트 데이터 가져오기
-            const data = await apiService.updateGuidance(currentLat, currentLng, this.sessionId);
+            const data = await apiService.updateNavigation(currentLat, currentLng, this.sessionId);
             
             if (data.error) {
                 console.error('안내 업데이트 오류:', data.error);

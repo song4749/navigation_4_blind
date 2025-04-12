@@ -4,8 +4,6 @@
  */
 
 // 장소 검색 API 함수 수정
-// 장소 검색 API 함수 수정
-// 장소 검색 API 함수 수정
 export async function searchPlaces(keyword, lat, lng, radius = 3000) {
     try {
         console.log('검색 요청:', { keyword, lat, lng, radius });
@@ -93,13 +91,21 @@ export async function searchPlaces(keyword, lat, lng, radius = 3000) {
     }
 }
 
-// 경로 계산 API
+// 경로 계산 API - POST 요청으로 수정
 export async function getRoute(startLat, startLng, endLat, endLng) {
     try {
-        const url = `/api/get_route?start_lat=${startLat}&start_lng=${startLng}&end_lat=${endLat}&end_lng=${endLng}`;
-        console.log('경로 계산 요청:', url);
+        const requestData = {
+            start_lat: startLat,
+            start_lng: startLng,
+            end_lat: endLat,
+            end_lng: endLng
+        };
         
-        const response = await fetch(url);
+        const response = await fetch('/api/get_route', {
+            method: 'POST',  // GET에서 POST로 변경
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
         
         if (!response.ok) {
             throw new Error(`서버 응답 오류: ${response.status}`);
@@ -177,7 +183,7 @@ export async function updateNavigation(currentLat, currentLng, sessionId) {
             session_id: sessionId
         };
         
-        const response = await fetch('/api/update_guidance', {
+        const response = await fetch('/api/guidance_update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestData)
