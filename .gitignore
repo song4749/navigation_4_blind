@@ -1,5 +1,4 @@
 *.xml
-*.jpg
 *.mp4
 *.txt
 *.zip
@@ -12,3 +11,6 @@
 .env
 *.pt
 *.yaml
+depthmap_latest.jpg
+obstacle_latest.jpg
+segmentation_latest.jpg
